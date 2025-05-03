@@ -3,7 +3,7 @@
 	"name": "Course Module Loader",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Downloads course modules from a given URL and loads them into Obsidian.",
+	"description": "Downloads and unzips course module zip files from a URL into a specified vault folder, skipping existing files.",
 	"author": "Sebastian Kamilli",
 	"authorUrl": "https://www.linkedin.com/in/sebastiankamilli/",
 	"isDesktopOnly": false
