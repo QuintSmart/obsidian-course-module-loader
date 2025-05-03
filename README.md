@@ -1,0 +1,2 @@
+# obsidian-course-module-loader
+
