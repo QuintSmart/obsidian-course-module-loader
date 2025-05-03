@@ -12,7 +12,7 @@ import {
 	FuzzySuggestModal, // Needed for the searchable folder list
 	FuzzyMatch      // Needed for highlighting search results
 } from 'obsidian';
-import JSZip from 'jszip';
+import JSZip from 'jszip'; // Keep this import as is with allowSyntheticDefaultImports: true
 
 // Settings Interface
 interface CourseMaterialPluginSettings {
@@ -154,7 +154,7 @@ class FolderSuggestModal extends FuzzySuggestModal<TFolder> {
 
 
 // ----------------------------------------
-//  Settings Tab Class (MODIFIED - Fetch list on button click)
+//  Settings Tab Class (FIXED .setCta() usage)
 // ----------------------------------------
 class CourseMaterialSettingTab extends PluginSettingTab {
 	plugin: CourseMaterialPlugin;
@@ -185,7 +185,8 @@ class CourseMaterialSettingTab extends PluginSettingTab {
 			// Add the button to the same setting control container
 			setting.addButton(button => { // Add button directly to the 'setting' object
 				button.setButtonText('Change Folder')
-					.setCta(false) // Less prominent than main action buttons
+					// --- REMOVED .setCta(false) ---
+					// .setCta(false) // No argument needed, just remove if not CTA
 					.onClick(() => {
 						// --- FETCH FOLDER LIST HERE ---
 						console.log("Settings Tab: 'Change Folder' clicked. Fetching folder list...");
