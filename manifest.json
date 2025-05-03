@@ -1,5 +1,5 @@
 {
-	"id": "obsidian-course-module-loader",
+	"id": "course-module-loader",
 	"name": "Course Module Loader",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
