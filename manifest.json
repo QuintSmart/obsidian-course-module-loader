@@ -1,11 +1,10 @@
 {
-	"id": "sample-plugin",
-	"name": "Sample Plugin",
+	"id": "obsidian-course-module-loader",
+	"name": "Course Module Loader",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Demonstrates some of the capabilities of the Obsidian API.",
-	"author": "Obsidian",
-	"authorUrl": "https://obsidian.md",
-	"fundingUrl": "https://obsidian.md/pricing",
+	"description": "Downloads course modules from a given URL and loads them into Obsidian.",
+	"author": "Sebastian Kamilli",
+	"authorUrl": "https://www.linkedin.com/in/sebastiankamilli/",
 	"isDesktopOnly": false
 }
