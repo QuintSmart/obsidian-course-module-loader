@@ -5,6 +5,6 @@
 	"minAppVersion": "0.15.0",
 	"description": "Downloads and unzips course module zip files from a URL into a specified vault folder, skipping existing files.",
 	"author": "Sebastian Kamilli",
-	"authorUrl": "https://www.linkedin.com/in/sebastiankamilli/",
+	"authorUrl": "https://github.com/QuintSmart/obsidian-course-module-loader",
 	"isDesktopOnly": false
 }
