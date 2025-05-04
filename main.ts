@@ -12,7 +12,7 @@ import {
 	FuzzySuggestModal,
 	FuzzyMatch
 } from 'obsidian';
-import JSZip from 'jszip'; 
+import JSZip from 'jszip'; // Keep this import as is with allowSyntheticDefaultImports: true
 
 // Settings Interface
 interface CourseMaterialPluginSettings {
@@ -23,6 +23,14 @@ interface CourseMaterialPluginSettings {
 const DEFAULT_SETTINGS: CourseMaterialPluginSettings = {
 	targetFolder: 'Course Modules' // Default folder name
 }
+
+// --- Type Guard Function ---
+// This function explicitly checks if a file is a TFolder and tells TypeScript
+function isTFolder(file: TAbstractFile): file is TFolder {
+    return file instanceof TFolder;
+}
+// --- End Type Guard ---
+
 
 // ----------------------------------------
 //  URL Input Modal Class
@@ -87,7 +95,7 @@ class UrlInputModal extends Modal {
 
 
 // ----------------------------------------
-//  Folder Suggest Modal Class (Cleaned up logs)
+//  Folder Suggest Modal Class (Using Type Guard)
 // ----------------------------------------
 class FolderSuggestModal extends FuzzySuggestModal<TFolder> {
 	plugin: CourseMaterialPlugin;
@@ -100,7 +108,6 @@ class FolderSuggestModal extends FuzzySuggestModal<TFolder> {
 		this.settingDisplayElement = settingDisplayElement;
 		this.preFetchedFolders = folders; // Store the passed list
 		this.setPlaceholder("Search for a folder...");
-		
 	}
 
 	getItems(): TFolder[] {
@@ -109,27 +116,28 @@ class FolderSuggestModal extends FuzzySuggestModal<TFolder> {
 			return this.preFetchedFolders;
 		}
 
-		// Fallback: Fetch if list wasn't provided (shouldn't happen with new settings tab logic)
-		console.warn("FolderSuggestModal: Pre-fetched list not available, fetching manually."); // Keep warning
+		// Fallback: Fetch if list wasn't provided
+		console.warn("FolderSuggestModal: Pre-fetched list not available, fetching manually.");
+		// --- USE TYPE GUARD & REMOVE CAST ---
 		const folders = this.app.vault.getAllLoadedFiles()
-							.filter(file => file instanceof TFolder) as TFolder[];
+							.filter(isTFolder); // Use the type guard function
         const root = this.app.vault.getRoot();
         if (!folders.some(f => f.path === '/')) {
              folders.unshift(root);
         }
+		// TypeScript should now correctly infer the type as TFolder[]
 		return folders;
 	}
 
 	getItemText(folder: TFolder): string {
-		return folder.path === '/' ? '/ (Vault Root)' : folder.path; // Display the full path, special label for root
+		return folder.path === '/' ? '/ (Vault Root)' : folder.path;
 	}
 
 	onChooseItem(folder: TFolder, evt: MouseEvent | KeyboardEvent): void {
-		const selectedPath = folder.path; // Path is '/' for root
+		const selectedPath = folder.path;
 		this.plugin.settings.targetFolder = selectedPath;
 		this.plugin.saveSettings();
 		new Notice(`Target folder set to: ${selectedPath}`);
-		
 		this.settingDisplayElement.value = selectedPath;
 	}
 
@@ -145,7 +153,7 @@ class FolderSuggestModal extends FuzzySuggestModal<TFolder> {
 
 
 // ----------------------------------------
-//  Settings Tab Class (Using CSS class for styling)
+//  Settings Tab Class (Using Type Guard)
 // ----------------------------------------
 class CourseMaterialSettingTab extends PluginSettingTab {
 	plugin: CourseMaterialPlugin;
@@ -165,26 +173,22 @@ class CourseMaterialSettingTab extends PluginSettingTab {
 			.setName('Target Folder')
 			.setDesc('The folder where downloaded modules will be unzipped.');
 
-		// Add a non-editable text element to display the current setting
 		setting.addText(text => {
 			text.setValue(this.plugin.settings.targetFolder).setDisabled(true);
-			
 			text.inputEl.addClass('course-material-downloader-wide-input');
 			const displayElement = text.inputEl;
 
-			// Add the button to the same setting control container
 			setting.addButton(button => {
 				button.setButtonText('Change Folder')
 					.onClick(() => {
-						
-						const currentFolders = (this.app.vault.getAllLoadedFiles()
-                                    .filter(file => file instanceof TFolder) as TFolder[]);
+						// --- USE TYPE GUARD & REMOVE CAST ---
+						const currentFolders = this.app.vault.getAllLoadedFiles()
+                                    .filter(isTFolder); // Use the type guard function
 						const root = this.app.vault.getRoot();
 						if (!currentFolders.some(f => f.path === '/')) {
 							currentFolders.unshift(root);
 						}
-            			
-
+						// TypeScript should now correctly infer the type as TFolder[]
 						new FolderSuggestModal(this.app, this.plugin, displayElement, currentFolders).open();
 					});
 			});
@@ -202,7 +206,6 @@ export default class CourseMaterialPlugin extends Plugin {
 	settings: CourseMaterialPluginSettings;
 
 	async onload() {
-		
 		await this.loadSettings();
 
 		this.addCommand({
@@ -217,7 +220,7 @@ export default class CourseMaterialPlugin extends Plugin {
 	}
 
 	onunload() {
-		
+		// Cleanup logic if needed
 	}
 
 	async loadSettings() {
@@ -242,22 +245,18 @@ export default class CourseMaterialPlugin extends Plugin {
 			if (existingItem instanceof TFolder) {
 				return existingItem;
 			} else if (existingItem instanceof TFile) {
-				
 				console.error(`Cannot create folder '${normalizedPath}', a file with this name already exists.`);
 				new Notice(`Cannot create folder '${normalizedPath}', a file exists there.`);
 				return null;
 			} else {
-				
 				try {
 					const newFolder = await this.app.vault.createFolder(normalizedPath);
 					new Notice(`Created folder: ${normalizedPath}`);
 					return newFolder;
 				} catch (creationError) {
-					
 					console.error(`Error creating folder '${normalizedPath}':`, creationError);
 					const checkAgain = this.app.vault.getAbstractFileByPath(normalizedPath);
 					if (checkAgain instanceof TFolder) {
-						
 						return checkAgain;
 					}
 					new Notice(`Error creating folder '${normalizedPath}'. Check console.`);
@@ -265,7 +264,6 @@ export default class CourseMaterialPlugin extends Plugin {
 				}
 			}
 		} catch (error) {
-			
 			console.error(`Unexpected error ensuring folder exists '${normalizedPath}':`, error);
 			new Notice(`Unexpected error checking folder '${normalizedPath}'. Check console.`);
 			return null;
@@ -307,13 +305,10 @@ export default class CourseMaterialPlugin extends Plugin {
 		let zipData: ArrayBuffer;
 		try {
 			new Notice('Downloading module...');
-			
 			const response = await requestUrl({ url: url });
 			zipData = response.arrayBuffer;
 			new Notice('Download complete. Unzipping...');
-			
 		} catch (error) {
-			
 			console.error('Download Error:', error);
 			new Notice(`Failed to download file: ${error.message}. Check console (Ctrl+Shift+I or Cmd+Opt+I).`);
 			return;
@@ -341,7 +336,6 @@ export default class CourseMaterialPlugin extends Plugin {
 					if (dirPath && !folderPathsCreated.has(dirPath)) {
 						const folderExists = await this.ensureFolderExists(dirPath);
 						if (!folderExists) {
-							
 							console.warn(`Could not ensure directory exists: ${dirPath}. Skipping contents.`);
 						} else {
 							folderPathsCreated.add(dirPath);
@@ -358,7 +352,6 @@ export default class CourseMaterialPlugin extends Plugin {
 					if (parentPath && parentPath !== cleanTargetFolderPath && !folderPathsCreated.has(parentPath)) {
 						const parentFolderExists = await this.ensureFolderExists(parentPath);
 						if (!parentFolderExists) {
-							
 							console.warn(`Could not ensure parent directory exists: ${parentPath}. Skipping file: ${normalizedDestPath}`);
 							continue;
 						} else {
@@ -368,7 +361,6 @@ export default class CourseMaterialPlugin extends Plugin {
 
 					const pathToCheck = normalizedDestPath.startsWith('/') ? normalizedDestPath.substring(1) : normalizedDestPath;
 					if (pathToCheck === '' && normalizedDestPath === '/') {
-						
 						console.warn("Attempting to check root path '/' for a file. Skipping.");
 						continue;
 					}
@@ -378,7 +370,6 @@ export default class CourseMaterialPlugin extends Plugin {
 						continue;
 
 					} else if (existingItem instanceof TFolder) {
-					
 						console.error(`Skipping file write: A folder exists at path ${normalizedDestPath}`);
 						new Notice(`Skipping file write: Folder exists at ${normalizedDestPath}`);
 						continue;
@@ -386,15 +377,12 @@ export default class CourseMaterialPlugin extends Plugin {
 					} else {
 						// File does not exist. Create it.
 						try {
-							
 							await this.app.vault.createBinary(normalizedDestPath, fileData, { mtime: Date.now() });
 							fileCount++;
 						} catch (writeError) {
 							if (writeError.message?.toLowerCase().includes("file already exists")) {
-							
 								console.warn(`Caught 'File already exists' on createBinary for ${normalizedDestPath}. Skipping.`);
 							} else {
-							
 								console.error(`Error creating file '${normalizedDestPath}':`, writeError);
 								new Notice(`Error creating file '${normalizedDestPath}'. Check console.`);
 							}
@@ -404,13 +392,10 @@ export default class CourseMaterialPlugin extends Plugin {
 			} // End of for loop
 
 			new Notice(`Successfully extracted ${fileCount} new file(s) to '${targetFolder.path}'.`);
-			
 
 		} catch (error) {
-			
 			console.error('Unzip/Write Error:', error);
 			if (error.message?.toLowerCase().includes("file already exists")) {
-			
 				console.warn("Caught 'File already exists' error during unzip/write phase, possibly handled. Check logic if files were missed.");
 				new Notice("An unexpected 'File already exists' error occurred during processing. Some files might not have been processed correctly. Check console.");
 			} else {
