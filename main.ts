@@ -9,8 +9,10 @@ import {
 	TAbstractFile,
 	Modal,
 	TFile,
-	FuzzySuggestModal,
-	FuzzyMatch
+	// FuzzySuggestModal, // No longer needed
+	// FuzzyMatch, // No longer needed
+	AbstractInputSuggest, // For new folder input
+	normalizePath // For path normalization
 } from 'obsidian';
 import JSZip from 'jszip'; // Keep this import as is with allowSyntheticDefaultImports: true
 
@@ -47,11 +49,12 @@ class UrlInputModal extends Modal {
 	onOpen() {
 		const { contentEl } = this;
 		contentEl.empty();
-		contentEl.createEl('h2', { text: 'Enter Course Module URL' });
+		// --- SENTENCE CASE ---
+		contentEl.createEl('h2', { text: 'Enter course module URL' });
 
 		// Input field for the URL
 		new Setting(contentEl)
-			.setName('URL')
+			.setName('URL') // Typically, setting names can be Title Case
 			.addText((text) =>
 				text.onChange((value) => {
 					this.result = value.trim();
@@ -62,7 +65,8 @@ class UrlInputModal extends Modal {
 		new Setting(contentEl)
 			.addButton((btn) =>
 				btn
-					.setButtonText('Download and Unzip')
+					// --- SENTENCE CASE ---
+					.setButtonText('Download and unzip')
 					.setCta() // Makes the button more prominent
 					.onClick(() => {
 						if (this.result) {
@@ -93,67 +97,52 @@ class UrlInputModal extends Modal {
 	}
 }
 
-
 // ----------------------------------------
-//  Folder Suggest Modal Class (Using Type Guard)
+//  Folder Input Suggester Class (NEW - Replaces FolderSuggestModal)
 // ----------------------------------------
-class FolderSuggestModal extends FuzzySuggestModal<TFolder> {
-	plugin: CourseMaterialPlugin;
-	settingDisplayElement: HTMLInputElement;
-	preFetchedFolders: TFolder[] | null; // To store the list passed from settings tab
+class FolderInputSuggest extends AbstractInputSuggest<TFolder> {
+    plugin: CourseMaterialPlugin;
 
-	constructor(app: App, plugin: CourseMaterialPlugin, settingDisplayElement: HTMLInputElement, folders: TFolder[]) {
-		super(app);
-		this.plugin = plugin;
-		this.settingDisplayElement = settingDisplayElement;
-		this.preFetchedFolders = folders; // Store the passed list
-		this.setPlaceholder("Search for a folder...");
-	}
+    constructor(app: App, protected inputEl: HTMLInputElement, plugin: CourseMaterialPlugin) {
+        super(app, inputEl);
+        this.plugin = plugin;
+    }
 
-	getItems(): TFolder[] {
-		// Prioritize the pre-fetched list if available
-		if (this.preFetchedFolders) {
-			return this.preFetchedFolders;
-		}
-
-		// Fallback: Fetch if list wasn't provided
-		console.warn("FolderSuggestModal: Pre-fetched list not available, fetching manually.");
-		// --- USE TYPE GUARD & REMOVE CAST ---
-		const folders = this.app.vault.getAllLoadedFiles()
-							.filter(isTFolder); // Use the type guard function
+    getSuggestions(query: string): TFolder[] {
+        const lowerCaseQuery = query.toLowerCase();
+        const allFolders = this.app.vault.getAllLoadedFiles().filter(isTFolder);
         const root = this.app.vault.getRoot();
-        if (!folders.some(f => f.path === '/')) {
-             folders.unshift(root);
+
+        const suggestions = allFolders.filter(folder =>
+            folder.path.toLowerCase().includes(lowerCaseQuery)
+        );
+
+        // Ensure root is always an option if query is empty or matches root
+        if (!suggestions.some(f => f.path === '/') && ('/ (vault root)'.toLowerCase().includes(lowerCaseQuery) || query === '')) {
+            if (!suggestions.find(f => f.path === '/')) {
+                 suggestions.unshift(root); // Add root if not present
+            }
         }
-		// TypeScript should now correctly infer the type as TFolder[]
-		return folders;
-	}
+        return suggestions;
+    }
 
-	getItemText(folder: TFolder): string {
-		return folder.path === '/' ? '/ (Vault Root)' : folder.path;
-	}
+    renderSuggestion(folder: TFolder, el: HTMLElement): void {
+        el.setText(folder.path === '/' ? '/ (Vault Root)' : folder.path);
+    }
 
-	onChooseItem(folder: TFolder, evt: MouseEvent | KeyboardEvent): void {
-		const selectedPath = folder.path;
-		this.plugin.settings.targetFolder = selectedPath;
-		this.plugin.saveSettings();
-		new Notice(`Target folder set to: ${selectedPath}`);
-		this.settingDisplayElement.value = selectedPath;
-	}
-
-    renderSuggestion(item: FuzzyMatch<TFolder>, el: HTMLElement): void {
-        super.renderSuggestion(item, el);
-        if (item.item.path === '/') {
-             const existingText = el.querySelector('.suggestion-content');
-             if (existingText) existingText.textContent = '/ (Vault Root)';
-             else el.setText('/ (Vault Root)');
-        }
+    selectSuggestion(folder: TFolder, evt: MouseEvent | KeyboardEvent): void {
+        const selectedPath = folder.path;
+        this.plugin.settings.targetFolder = selectedPath;
+        this.plugin.saveSettings();
+        this.inputEl.value = selectedPath; // Update the input field's text
+        this.close(); // Close the suggestion list
+        new Notice(`Target folder set to: ${selectedPath}`);
     }
 }
 
 
 // ----------------------------------------
-//  Settings Tab Class (Using Type Guard)
+//  Settings Tab Class (MODIFIED - Using AbstractInputSuggest, no top heading, sentence case)
 // ----------------------------------------
 class CourseMaterialSettingTab extends PluginSettingTab {
 	plugin: CourseMaterialPlugin;
@@ -165,34 +154,27 @@ class CourseMaterialSettingTab extends PluginSettingTab {
 
 	display(): void {
 		const { containerEl } = this;
-
 		containerEl.empty();
-		containerEl.createEl('h2', { text: 'Course Material Downloader Settings' });
+		// --- REMOVED TOP-LEVEL HEADING ---
+		// containerEl.createEl('h2', { text: 'Course Material Downloader Settings' });
 
-		const setting = new Setting(containerEl)
-			.setName('Target Folder')
-			.setDesc('The folder where downloaded modules will be unzipped.');
-
-		setting.addText(text => {
-			text.setValue(this.plugin.settings.targetFolder).setDisabled(true);
-			text.inputEl.addClass('course-material-downloader-wide-input');
-			const displayElement = text.inputEl;
-
-			setting.addButton(button => {
-				button.setButtonText('Change Folder')
-					.onClick(() => {
-						// --- USE TYPE GUARD & REMOVE CAST ---
-						const currentFolders = this.app.vault.getAllLoadedFiles()
-                                    .filter(isTFolder); // Use the type guard function
-						const root = this.app.vault.getRoot();
-						if (!currentFolders.some(f => f.path === '/')) {
-							currentFolders.unshift(root);
-						}
-						// TypeScript should now correctly infer the type as TFolder[]
-						new FolderSuggestModal(this.app, this.plugin, displayElement, currentFolders).open();
+		// --- USE AbstractInputSuggest ---
+		new Setting(containerEl)
+			// --- SENTENCE CASE ---
+			.setName('Target folder')
+			.setDesc('The folder where downloaded modules will be unzipped. Type to search.')
+			.addText(text => {
+				text.setValue(this.plugin.settings.targetFolder)
+					.setPlaceholder('Example: Course Materials/Week 1')
+					.onChange(async (value) => {
+						this.plugin.settings.targetFolder = value;
+						await this.plugin.saveSettings();
 					});
+				// Apply CSS class for consistent styling if needed (from styles.css)
+				text.inputEl.addClass('course-material-downloader-wide-input');
+				// Attach the suggester
+				new FolderInputSuggest(this.app, text.inputEl, this.plugin);
 			});
-		});
 
 		containerEl.createEl('p', { text: 'Note: If the desired folder doesn\'t exist, it will be created during the download process (if possible).' });
 	}
@@ -200,7 +182,7 @@ class CourseMaterialSettingTab extends PluginSettingTab {
 
 
 // ----------------------------------------
-//  Main Plugin Class (Cleaned up logs)
+//  Main Plugin Class (Cleaned up logs, sentence case command)
 // ----------------------------------------
 export default class CourseMaterialPlugin extends Plugin {
 	settings: CourseMaterialPluginSettings;
@@ -210,7 +192,8 @@ export default class CourseMaterialPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'download-course-module',
-			name: 'Download and Unzip Course Module',
+			// --- SENTENCE CASE ---
+			name: 'Download and unzip course module',
 			callback: () => {
 				this.showUrlInputModal();
 			}
@@ -231,13 +214,21 @@ export default class CourseMaterialPlugin extends Plugin {
 		await this.saveData(this.settings);
 	}
 
-	// --- Helper to ensure folder exists (Handles existing files gracefully, cleaned logs) ---
+	// --- Helper to ensure folder exists (Using normalizePath) ---
 	async ensureFolderExists(path: string): Promise<TFolder | null> {
-		if (path === '/' || path === '') {
+		// Use normalizePath for initial path cleaning
+		let normalizedPath = normalizePath(path);
+
+		// Handle root case explicitly after normalization
+		if (normalizedPath === '/' || normalizedPath === '.') { // '.' can be result of normalizePath for empty or root-like
 			return this.app.vault.getRoot();
 		}
-		let normalizedPath = path.replace(/^\/|\/$/g, '');
-		if (normalizedPath === '') return this.app.vault.getRoot();
+		// Remove leading/trailing slashes if normalizePath didn't already for consistency with getAbstractFileByPath
+        // which often doesn't want a leading slash for non-root paths.
+        // However, normalizePath should handle this well. Let's trust it.
+        // If normalizedPath is empty after this, it implies root or invalid.
+        if (normalizedPath === '') return this.app.vault.getRoot();
+
 
 		try {
 			const existingItem = this.app.vault.getAbstractFileByPath(normalizedPath);
@@ -279,7 +270,7 @@ export default class CourseMaterialPlugin extends Plugin {
 	}
 
 
-	// --- Main Download/Unzip Logic (Cleaned up logs) ---
+	// --- Main Download/Unzip Logic (Using normalizePath, cleaned logs) ---
 	async downloadAndUnzip(url: string) {
 		// --- 1. URL Validation & Dropbox Fix ---
 		if (!url.startsWith('http://') && !url.startsWith('https://')) {
@@ -298,7 +289,9 @@ export default class CourseMaterialPlugin extends Plugin {
 			new Notice(`Target folder "${targetFolderPath}" could not be found or created. Aborting.`);
 			return;
 		}
-		const cleanTargetFolderPath = targetFolder.path === '/' ? '' : targetFolder.path;
+		// Use the path from the TFolder object, especially important for root
+		// normalizePath will ensure consistency
+		const cleanTargetFolderPath = targetFolder.path === '/' ? '' : normalizePath(targetFolder.path);
 
 
 		// --- 3. Download ---
@@ -327,14 +320,17 @@ export default class CourseMaterialPlugin extends Plugin {
 				}
 
 				const zipEntry = zip.files[relativePath];
+                // Construct full destination path, handling root folder case
                 const fullDestPath = cleanTargetFolderPath ? `${cleanTargetFolderPath}/${relativePath}` : relativePath;
-				const normalizedDestPath = fullDestPath.replace(/\\/g, '/').replace(/\/+/g, '/');
+				// --- USE normalizePath ---
+				const normalizedDestPath = normalizePath(fullDestPath);
 
 				// Handle directories from zip
 				if (zipEntry.dir) {
-					const dirPath = normalizedDestPath.endsWith('/') ? normalizedDestPath.slice(0, -1) : normalizedDestPath;
+					// normalizePath handles trailing slashes, so direct use is fine
+					const dirPath = normalizedDestPath;
 					if (dirPath && !folderPathsCreated.has(dirPath)) {
-						const folderExists = await this.ensureFolderExists(dirPath);
+						const folderExists = await this.ensureFolderExists(dirPath); // ensureFolderExists also uses normalizePath
 						if (!folderExists) {
 							console.warn(`Could not ensure directory exists: ${dirPath}. Skipping contents.`);
 						} else {
@@ -346,10 +342,12 @@ export default class CourseMaterialPlugin extends Plugin {
 				else {
 					const fileData = await zipEntry.async('arraybuffer');
                     const lastSlashIndex = normalizedDestPath.lastIndexOf('/');
-                    const parentPath = lastSlashIndex > 0 ? normalizedDestPath.substring(0, lastSlashIndex) : (lastSlashIndex === 0 ? '/' : '');
+                    // Parent path calculation needs care with normalizePath
+                    let parentPath = lastSlashIndex > 0 ? normalizedDestPath.substring(0, lastSlashIndex) : (lastSlashIndex === 0 ? '/' : '');
+                    parentPath = normalizePath(parentPath); // Ensure parent path is also normalized
 
 					// Ensure parent directory exists first
-					if (parentPath && parentPath !== cleanTargetFolderPath && !folderPathsCreated.has(parentPath)) {
+					if (parentPath && parentPath !== (targetFolder.path === '/' ? '/' : cleanTargetFolderPath) && !folderPathsCreated.has(parentPath)) {
 						const parentFolderExists = await this.ensureFolderExists(parentPath);
 						if (!parentFolderExists) {
 							console.warn(`Could not ensure parent directory exists: ${parentPath}. Skipping file: ${normalizedDestPath}`);
@@ -359,12 +357,15 @@ export default class CourseMaterialPlugin extends Plugin {
 						}
 					}
 
-					const pathToCheck = normalizedDestPath.startsWith('/') ? normalizedDestPath.substring(1) : normalizedDestPath;
-					if (pathToCheck === '' && normalizedDestPath === '/') {
-						console.warn("Attempting to check root path '/' for a file. Skipping.");
+					// getAbstractFileByPath expects a path relative to the vault root, without a leading slash
+					// if it's not the root itself. normalizePath should handle this.
+					const pathToCheck = normalizedDestPath; // Trust normalizePath
+					if (pathToCheck === '.' || pathToCheck === '/') { // Check for root explicitly
+						console.warn("Attempting to check root path for a file. Skipping.");
 						continue;
 					}
-					const existingItem = pathToCheck ? this.app.vault.getAbstractFileByPath(pathToCheck) : null;
+					const existingItem = this.app.vault.getAbstractFileByPath(pathToCheck);
+
 
 					if (existingItem instanceof TFile) {
 						continue;

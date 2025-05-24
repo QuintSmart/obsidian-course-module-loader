@@ -1,1 +1,50 @@
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json # If you use npm and commit package-lock.json, keep this line. If you use yarn, remove it.
+yarn.lock         # If you use yarn and commit yarn.lock, keep this line. If you use npm, remove it.
+
+# Compiled JavaScript and map files (main.js is needed for release, but not for git source)
+main.js
+main.js.map
+
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.Spotlight-V100
+.Trashes
+
+# Build output
+build/
+dist/
+
+# Editor directories and files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Data file (if your plugin saves data and you don't want to commit it by default)
+# data.json # Uncomment if you have a data.json you don't want in the repo
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Optional: Log files
+*.log
+logs/
