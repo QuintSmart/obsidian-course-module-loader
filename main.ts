@@ -78,16 +78,13 @@ class UrlInputModal extends Modal {
 					}));
 
 		// Optional: Allow submitting with Enter key in the text input
-		contentEl.addEventListener('keypress', (event) => {
-			if (event.key === 'Enter') {
-				event.preventDefault(); // Prevent default Enter behavior
-				if (this.result) {
+		this.scope.register([], 'Enter', () => {
+			if (this.result) {
 					this.close();
 					this.onSubmit(this.result);
 				} else {
 					new Notice("Please enter a URL.");
 				}
-			}
 		});
 	}
 
@@ -155,8 +152,6 @@ class CourseMaterialSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
-		// --- REMOVED TOP-LEVEL HEADING ---
-		// containerEl.createEl('h2', { text: 'Course Material Downloader Settings' });
 
 		// --- USE AbstractInputSuggest ---
 		new Setting(containerEl)
